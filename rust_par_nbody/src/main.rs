@@ -9,8 +9,6 @@
 use std::ops::{Add, Sub, Mul, AddAssign, SubAssign};
 use std::f64::consts::PI;
 
-const SOLAR_MASS: f64 = 4.0 * PI * PI;
-const YEAR: f64 = 365.24;
 const N_BODIES: usize = 5;
 
 #[derive(Clone, Copy)]
@@ -64,82 +62,45 @@ impl Mul<f64> for Vec3 {
 }
 
 #[derive(Clone, Copy)]
-struct Planet {
+struct Particle {
     pos: Vec3,
     vel: Vec3,
     mass: f64,
 }
 
-impl Planet {
-    fn sun() -> Self {
-        Planet {
-            pos: Vec3(0.0, 0.0, 0.0),
-            vel: Vec3(0.0, 0.0, 0.0),
-            mass: SOLAR_MASS,
-        }
-    }
+fn circular_orbits(n: usize) -> Vec<Particle> {
+    let mut particle_buf = vec![];
+    particle_buf.push(Particle {
+    pos: Vec3(0.0, 0.0, 0.0),
+    vel: Vec3(0.0, 0.0, 0.0),
+    mass: 1.0,
+    });
 
-    fn jupiter() -> Self {
-        Planet {
-            pos: Vec3(4.84143144246472090e+00,
-                      -1.16032004402742839e+00,
-                      -1.03622044471123109e-01),
-            vel: Vec3(1.66007664274403694e-03 * YEAR,
-                      7.69901118419740425e-03 * YEAR,
-                      -6.90460016972063023e-05 * YEAR),
-            mass: 9.54791938424326609e-04 * SOLAR_MASS,
-        }
+    for i in 0..n {
+        let d = 0.1 + ((i as f64) * 5.0 / (n as f64));
+        let v = f64::sqrt(1.0 / d);
+        let theta = fastrand::f64() * 2.0 * PI;
+        let x = d * f64::cos(theta);
+        let y = d * f64::sin(theta);
+        let vx = -v * f64::sin(theta);
+        let vy = v * f64::cos(theta);
+        particle_buf.push(Particle {
+            pos: Vec3(x, y, 0.0),
+            vel: Vec3(vx, vy, 0.0),
+            mass: 1e-14,
+        });
     }
-
-    fn saturn() -> Self {
-        Planet {
-            pos: Vec3(8.34336671824457987e+00,
-                      4.12479856412430479e+00,
-                      -4.03523417114321381e-01),
-            vel: Vec3(-2.76742510726862411e-03 * YEAR,
-                      4.99852801234917238e-03 * YEAR,
-                      2.30417297573763929e-05 * YEAR),
-            mass: 2.85885980666130812e-04 * SOLAR_MASS,
-        }
-    }
-
-    fn uranus() -> Self {
-        Planet {
-            pos: Vec3(1.28943695621391310e+01,
-                      -1.51111514016986312e+01,
-                      -2.23307578892655734e-01),
-            vel: Vec3(2.96460137564761618e-03 * YEAR,
-                      2.37847173959480950e-03 * YEAR,
-                      -2.96589568540237556e-05 * YEAR),
-            mass: 4.36624404335156298e-05 * SOLAR_MASS,
-        }
-    }
-
-    fn neptune() -> Self {
-        Planet {
-            pos: Vec3(1.53796971148509165e+01,
-                      -2.59193146099879641e+01,
-                      1.79258772950371181e-01),
-            vel: Vec3(2.68067772490389322e-03 * YEAR,
-                      1.62824170038242295e-03 * YEAR,
-                      -9.51592254519715870e-05 * YEAR),
-            mass: 5.15138902046611451e-05 * SOLAR_MASS,
-        }
-    }
+    particle_buf
 }
 
 struct NBSystem {
-    planets: [Planet; N_BODIES],
+    planets: Vec<Particle>,
 }
 
 impl NBSystem {
-    fn new() -> Self {
+    fn new(n: usize) -> Self {
         NBSystem {
-            planets: [Planet::sun(),
-                      Planet::jupiter(),
-                      Planet::saturn(),
-                      Planet::uranus(),
-                      Planet::neptune()],
+            planets: circular_orbits(n)
         }
     }
 
@@ -168,25 +129,33 @@ impl NBSystem {
 
                 let distance = dp.norm();
                 let mag = dt / (distance * distance * distance);
+                let massj = planets[j].mass;
+                let massi = planets[i].mass;
 
-                planets[i].vel -= dp * planets[j].mass * mag;
-                planets[j].vel += dp * planets[i].mass * mag;
+                planets[i].vel -= dp * massj * mag;
+                planets[j].vel += dp * massi * mag;
             }
-            planets[i].pos += planets[i].vel * dt;
+            let dpos = planets[i].vel * dt;
+            planets[i].pos += dpos;
         }
     }
 }
 
 fn main() {
-    let n = std::env::args_os()
+    let steps = std::env::args_os()
         .nth(1)
         .and_then(|s| s.into_string().ok())
         .and_then(|n| n.parse().ok())
         .unwrap_or(1000);
-    let mut system = NBSystem::new();
+    let n = std::env::args_os()
+        .nth(2)
+        .and_then(|s| s.into_string().ok())
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(1000);
+    let mut system = NBSystem::new(n);
     system.offset_momentum();
     println!("{:.9}", system.energy());
-    for _ in 0..n {
+    for _ in 0..steps {
         system.advance(0.01);
     }
     println!("{:.9}", system.energy());
