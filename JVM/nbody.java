@@ -6,23 +6,23 @@
    double[] instead of Object[] by Han Kai
 */
 
+import java.util.random.RandomGenerator;
+
+
 public final class nbody {
    public static void main(String[] args) {
-      int n = Integer.parseInt(args[0]);
+      int steps = Integer.parseInt(args[0]);
+      int numBodies = Integer.parseInt(args[1]);
 
-      NBodySystem bodies = new NBodySystem();
-      System.out.printf("%.9f\n", bodies.energy());
-      for (int i = 0; i < n; ++i)
+      NBodySystem bodies = new NBodySystem(numBodies);
+      System.out.printf("%e\n", bodies.energy());
+      for (int i = 0; i < steps; ++i)
          bodies.advance(0.01);
-      System.out.printf("%.9f\n", bodies.energy());
+      System.out.printf("%e\n", bodies.energy());
    }
 
    final static class NBodySystem {
-      private static final double PI = 3.141592653589793;
-      private static final double SOLAR_MASS = 4 * PI * PI;
-      private static final double DAYS_PER_YEAR = 365.24;
       private static final int BODY_SIZE = 8;
-      private static final int BODY_COUNT = 5;
 
       private static final int x = 0;
       private static final int y = 1;
@@ -32,82 +32,21 @@ public final class nbody {
       private static final int vz = 5;
       private static final int mass = 6;
 
-      private final double[] _bodies = {
-            //sun begin
-            0, 0, 0, 0, 0, 0, SOLAR_MASS, 0,
-            //sun end
+      private final double[] _bodies;
+      private final int numBodies;
 
-            //jupiter begin
-            4.84143144246472090e+00,//
-            -1.16032004402742839e+00,//
-            -1.03622044471123109e-01,//
-            1.66007664274403694e-03 * DAYS_PER_YEAR,//
-            7.69901118419740425e-03 * DAYS_PER_YEAR,//
-            -6.90460016972063023e-05 * DAYS_PER_YEAR,//
-            9.54791938424326609e-04 * SOLAR_MASS,//
-            0,
-            //jupiter end
-
-            //saturn begin
-            8.34336671824457987e+00,//
-            4.12479856412430479e+00,//
-            -4.03523417114321381e-01,//
-            -2.76742510726862411e-03 * DAYS_PER_YEAR,//
-            4.99852801234917238e-03 * DAYS_PER_YEAR,//
-            2.30417297573763929e-05 * DAYS_PER_YEAR,//
-            2.85885980666130812e-04 * SOLAR_MASS,//
-            0,
-            //saturn end
-
-            //uranus begin
-            1.28943695621391310e+01,//
-            -1.51111514016986312e+01,//
-            -2.23307578892655734e-01,//
-            2.96460137564761618e-03 * DAYS_PER_YEAR,//
-            2.37847173959480950e-03 * DAYS_PER_YEAR,//
-            -2.96589568540237556e-05 * DAYS_PER_YEAR,//
-            4.36624404335156298e-05 * SOLAR_MASS,//
-            0,
-            //uranus end
-
-            //neptune begin
-            1.53796971148509165e+01,//
-            -2.59193146099879641e+01,//
-            1.79258772950371181e-01,//
-            2.68067772490389322e-03 * DAYS_PER_YEAR,//
-            1.62824170038242295e-03 * DAYS_PER_YEAR,//
-            -9.51592254519715870e-05 * DAYS_PER_YEAR,//
-            5.15138902046611451e-05 * SOLAR_MASS, //
-            0
-            //neptune end
-      };
-
-      public NBodySystem() {
-         double px = 0.0;
-         double py = 0.0;
-         double pz = 0.0;
-
-         for (int i = 0; i < BODY_COUNT; ++i) {
-            final int ioffset = BODY_SIZE * i;
-            double imass = _bodies[ioffset + mass];
-
-            px += _bodies[ioffset + vx] * imass;
-            py += _bodies[ioffset + vy] * imass;
-            pz += _bodies[ioffset + vz] * imass;
-         }
-
-         _bodies[vx] = -px / SOLAR_MASS;
-         _bodies[vy] = -py / SOLAR_MASS;
-         _bodies[vz] = -pz / SOLAR_MASS;
+      public NBodySystem(int numBodies) {
+         this.numBodies = numBodies;
+         _bodies = circularOrbits(numBodies);
       }
 
       public void advance(double dt) {
          final double[] bodies = _bodies;
 
-         for (int i = 0; i < BODY_COUNT; ++i) {
+         for (int i = 0; i < numBodies; ++i) {
             final int offset = BODY_SIZE * i;
 
-            for (int j = i + 1; j < BODY_COUNT; ++j) {
+            for (int j = i + 1; j < numBodies; ++j) {
                final int ioffset = offset;
                final int joffset = BODY_SIZE * j;
 
@@ -132,7 +71,7 @@ public final class nbody {
             }
          }
 
-         for (int i = 0; i < BODY_COUNT; ++i) {
+         for (int i = 0; i < numBodies; ++i) {
             final int ioffset = BODY_SIZE * i;
 
             bodies[ioffset + x] += dt * bodies[ioffset + vx];
@@ -147,7 +86,7 @@ public final class nbody {
          double dx, dy, dz, distance;
          double e = 0.0;
 
-         for (int i = 0; i < BODY_COUNT; ++i) {
+         for (int i = 0; i < numBodies; ++i) {
             final int offset = BODY_SIZE * i;
 
             final double ivx = bodies[offset + vx];
@@ -157,7 +96,7 @@ public final class nbody {
 
             e += 0.5 * imass * (ivx * ivx + ivy * ivy + ivz * ivz);
 
-            for (int j = i + 1; j < BODY_COUNT; ++j) {
+            for (int j = i + 1; j < numBodies; ++j) {
                final int ioffset = offset;
                final int joffset = BODY_SIZE * j;
 
@@ -177,6 +116,41 @@ public final class nbody {
          return e;
       }
 
+      static void setBody(int index, double[] sys, double x, double y, double z, double vx, double vy, double vz, double radius, double mass) {
+         int base = index * BODY_SIZE;
+         sys[base + 0] = x;
+         sys[base + 1] = y;
+         sys[base + 2] = z;
+         sys[base + 3] = vx;
+         sys[base + 4] = vy;
+         sys[base + 5] = vz;
+         sys[base + 6] = radius;
+         sys[base + 7] = mass;
+      }
+
+      
+      static double[] circularOrbits(int n) {
+         var rand = RandomGenerator.getDefault();
+         var system = new double[(n+1) * BODY_SIZE];
+         setBody(0, system, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.00465047, 1.0 );
+         
+         for (int i = 0; i < n; ++i) {
+            double d = 0.1 + (i * 5.0 / n);
+            double v = Math.sqrt(1.0 / d);
+            double theta = rand.nextDouble(0.0, 6.28);
+            double x = d * Math.cos(theta);
+            double y = d * Math.sin(theta);
+            double vx = -v * Math.sin(theta);
+            double vy = v * Math.cos(theta);
+            setBody(i+1, system,
+               x, y, 0.0,
+               vx, vy, 0.0,
+               1e-14,
+               1e-7
+            );
+         }
+         return system;
+      }
    }
 
 }
