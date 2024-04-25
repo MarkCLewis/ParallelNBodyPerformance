@@ -10,6 +10,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <utility>
+#include <omp.h>
+#include <array>
+#include <vector>
+#include <random>
+#include <iostream>
+using namespace std;
+
 
 static constexpr double PI = 3.141592653589793;
 static constexpr double SOLAR_MASS = 4 * PI * PI;
@@ -24,158 +31,152 @@ constexpr void static_for(F&& f)
     }
 }
 
-struct alignas(32) Body {
-    double x, y, z, pad0;
-    double vx, vy, vz, pad1;
-    double mass;
+struct alignas(32) Particle{
+    std::array<double, 3> pos; 
+    std::array<double, 3> vel;
+    double r;
+    double m;
 
-    constexpr Body(double x, double y, double z,
-        double vx, double vy, double vz,
-        double mass)
-        : x(x)
-        , y(y)
-        , z(z)
-        , pad0()
-        , vx(vx)
-        , vy(vy)
-        , vz(vz)
-        , pad1()
-        , mass(mass)
+    constexpr Particle(std::array<double, 3> pos, std::array<double, 3> vel, double r, double m):
+        pos(pos),
+        vel(vel),
+        r(r),
+        m(m)
     {
     }
 };
 
-static constexpr size_t N_BODIES = 5;
-using System = Body[N_BODIES];
-
-static constexpr Body sun = {
-    0, 0, 0, 0, 0, 0, SOLAR_MASS
-};
-
-static constexpr Body jupiter = {
-    4.84143144246472090e+00,
-    -1.16032004402742839e+00,
-    -1.03622044471123109e-01,
-    1.66007664274403694e-03 * DAYS_PER_YEAR,
-    7.69901118419740425e-03 * DAYS_PER_YEAR,
-    -6.90460016972063023e-05 * DAYS_PER_YEAR,
-    9.54791938424326609e-04 * SOLAR_MASS
-};
-
-static constexpr Body saturn = {
-    8.34336671824457987e+00,
-    4.12479856412430479e+00,
-    -4.03523417114321381e-01,
-    -2.76742510726862411e-03 * DAYS_PER_YEAR,
-    4.99852801234917238e-03 * DAYS_PER_YEAR,
-    2.30417297573763929e-05 * DAYS_PER_YEAR,
-    2.85885980666130812e-04 * SOLAR_MASS
-};
-
-static constexpr Body uranus = {
-    1.28943695621391310e+01,
-    -1.51111514016986312e+01,
-    -2.23307578892655734e-01,
-    2.96460137564761618e-03 * DAYS_PER_YEAR,
-    2.37847173959480950e-03 * DAYS_PER_YEAR,
-    -2.96589568540237556e-05 * DAYS_PER_YEAR,
-    4.36624404335156298e-05 * SOLAR_MASS
-};
-
-static constexpr Body neptune = {
-    1.53796971148509165e+01,
-    -2.59193146099879641e+01,
-    1.79258772950371181e-01,
-    2.68067772490389322e-03 * DAYS_PER_YEAR,
-    1.62824170038242295e-03 * DAYS_PER_YEAR,
-    -9.51592254519715870e-05 * DAYS_PER_YEAR,
-    5.15138902046611451e-05 * SOLAR_MASS
-};
-
-constexpr void offset_momentum(System& bodies)
-{
-    double px = 0.0;
-    double py = 0.0;
-    double pz = 0.0;
-
-    static_for<0, N_BODIES>([&](auto i) {
-        px += bodies[i].vx * bodies[i].mass;
-        py += bodies[i].vy * bodies[i].mass;
-        pz += bodies[i].vz * bodies[i].mass;
+std::vector<Particle> circular_orbits(int n){
+    std::vector<Particle> particle_buf;
+    particle_buf.push_back(Particle{
+        {0.0,0.0,0.0},
+        {0.0,0.0,0.0},
+        0.00465047,
+        1.0
     });
 
-    bodies[0].vx = -px / SOLAR_MASS;
-    bodies[0].vy = -py / SOLAR_MASS;
-    bodies[0].vz = -pz / SOLAR_MASS;
+    #pragma omp parallel
+    {
+        for(int i=0;i<n;i++){
+            double d = 0.1 + (i * 5.0 / n);
+            double v = std::sqrt(1.0 / d);
+            double theta = rand() * 6.28;
+            double x = d * std::cos(theta);
+            double y = d * std::sin(theta);
+            double vx = -v * std::sin(theta);
+            double vy = v * std::cos(theta);
+            // std::printf("x pos: %.9f\n",x);
+            // std::printf("y pos: %.9f\n",y);
+            // std::printf("x vel: %.9f\n",vx);
+            // std::printf("y vel: %.9f\n",vy); 
+            // std::cout << "############" << std::endl;
+            particle_buf.push_back(Particle{
+                {x,y,0.0},
+                {vx,vy,0.0},
+                1e-7,
+                1e-14,
+            });
+        }
+        return particle_buf;
+    }
 }
 
-constexpr void advance(System& bodies, double dt)
+constexpr void offset_momentum(std::vector<Particle>& particles, int n)
 {
-    static_for<0, N_BODIES>([&](auto i) {
-        static_for<i + 1, N_BODIES>([&](auto j) {
-            double dx = bodies[i].x - bodies[j].x;
-            double dy = bodies[i].y - bodies[j].y;
-            double dz = bodies[i].z - bodies[j].z;
-
-            double dSquared = dx * dx + dy * dy + dz * dz;
-            double mag = dt / (dSquared * std::sqrt(dSquared));
-
-            bodies[i].vx -= dx * bodies[j].mass * mag;
-            bodies[i].vy -= dy * bodies[j].mass * mag;
-            bodies[i].vz -= dz * bodies[j].mass * mag;
-
-            bodies[j].vx += dx * bodies[i].mass * mag;
-            bodies[j].vy += dy * bodies[i].mass * mag;
-            bodies[j].vz += dz * bodies[i].mass * mag;
-        });
-    });
-
-    static_for<0, N_BODIES>([&](auto i) {
-        bodies[i].x += dt * bodies[i].vx;
-        bodies[i].y += dt * bodies[i].vy;
-        bodies[i].z += dt * bodies[i].vz;
-    });
+    #pragma omp parallel
+    {
+        double px = 0.0;
+        double py = 0.0;
+        double pz = 0.0;
+        for(int i=0;i<n;i++){
+            px += particles[i].vel[0] * particles[i].m;
+            py += particles[i].vel[1] * particles[i].m;
+            pz += particles[i].vel[2] * particles[i].m;
+        }
+        particles[0].vel[0] = -px / SOLAR_MASS;
+        particles[0].vel[1] = -py / SOLAR_MASS;
+        particles[0].vel[2] = -pz / SOLAR_MASS;
+    }
 }
 
-constexpr double energy(const System& bodies)
+constexpr void advance(std::vector<Particle>& particles, double dt, int n)
+{
+    #pragma omp parallel
+    {
+        for(int i=0;i<n;i++){
+            for(int j=0;j<n;j++){
+                if(j!=i){
+                    double dx = particles[i].pos[0] - particles[j].pos[0];
+                    double dy = particles[i].pos[1] - particles[j].pos[1];
+                    double dz = particles[i].pos[2] - particles[j].pos[2];
+
+                    double dSquared = dx * dx + dy * dy + dz * dz;
+                    double mag = dt / (dSquared * std::sqrt(dSquared));
+
+                    particles[i].vel[0] -= dx * particles[j].m * mag;
+                    particles[i].vel[1] -= dy * particles[j].m * mag;
+                    particles[i].vel[2] -= dz * particles[j].m * mag;
+
+                    particles[j].vel[0] += dx * particles[i].m * mag;
+                    particles[j].vel[1] += dy * particles[i].m * mag;
+                    particles[j].vel[2] += dz * particles[i].m * mag;
+                }
+            }
+        }
+    }
+
+    #pragma omp parallel
+    {
+        for(int i=0;i<n;i++){
+            particles[i].pos[0] += dt * particles[i].vel[0];
+            particles[i].pos[1] += dt * particles[i].vel[1];
+            particles[i].pos[2] += dt * particles[i].vel[2];
+        }
+    }
+}
+
+constexpr double energy(const std::vector<Particle>& particles, int n)
 {
     double e = 0.0;
+    #pragma omp parallel
+    {
+        for(int i=0;i<n;i++){
+            const Particle& iParticles = particles[i];
+            e += 0.5 * iParticles.m * (iParticles.vel[0] * iParticles.vel[0] + iParticles.vel[1] * iParticles.vel[1] + iParticles.vel[2] * iParticles.vel[2]);
+            std::printf("e: %.9f\n",e); 
+            for(int j=0;j<n;j++){
+                if(i!=j){
+                    double dx = iParticles.pos[0] - particles[j].pos[0];
+                    double dy = iParticles.pos[1] - particles[j].pos[1];
+                    double dz = iParticles.pos[2] - particles[j].pos[2];
 
-    static_for<0, N_BODIES>([&](auto i) {
-        const Body& iBody = bodies[i];
-        e += 0.5 * iBody.mass * (iBody.vx * iBody.vx + iBody.vy * iBody.vy + iBody.vz * iBody.vz);
-
-        static_for<i + 1, N_BODIES>([&](auto j) {
-            double dx = iBody.x - bodies[j].x;
-            double dy = iBody.y - bodies[j].y;
-            double dz = iBody.z - bodies[j].z;
-
-            double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
-            e -= (iBody.mass * bodies[j].mass) / distance;
-        });
-    });
-
+                    double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+                    e -= (iParticles.m * particles[j].m) / distance;
+                    std::printf("e: %.9f\n",e); 
+                }
+            }
+        }
+    }
     return e;
 }
 
 int main(int argc, char* argv[])
 {
+    
     const auto n = std::atoi(argv[1]);
 
-    System system = {
-        sun,
-        jupiter,
-        saturn,
-        uranus,
-        neptune
-    };
+    std::vector<Particle> particles = circular_orbits(n);
+    std::cout << "Number of particles: " << n << std::endl;
+    offset_momentum(particles, n);
 
-    offset_momentum(system);
-
-    std::printf("%.9f\n", energy(system));
+    std::printf("%.9f\n", energy(particles, n));
 
     for (size_t i = 0; i < n; ++i)
-        advance(system, 0.01);
+        advance(particles, 0.01, n);
 
-    std::printf("%.9f\n", energy(system));
+    std::printf("%.9f\n", energy(particles, n));
+    
 }
+
+//compile: g++ -std=c++11 -O2 -Wall nbody9.cpp 
+//exec: ./nbody9.exe 500
