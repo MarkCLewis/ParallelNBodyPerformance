@@ -14,33 +14,20 @@
 #include <array>
 #include <vector>
 #include <random>
-#include <iostream>
-using namespace std;
 
 
 static constexpr double PI = 3.141592653589793;
 static constexpr double SOLAR_MASS = 4 * PI * PI;
 static constexpr double DAYS_PER_YEAR = 365.24;
 
-template <auto start, auto stop, auto step = 1, class F>
-constexpr void static_for(F&& f)
-{
-    if constexpr (start < stop) {
-        f(std::integral_constant<decltype(start), start>());
-        static_for<start + step, stop, step>(std::move(f));
-    }
-}
-
 struct alignas(32) Particle{
     std::array<double, 3> pos; 
     std::array<double, 3> vel;
-    double r;
     double m;
 
-    constexpr Particle(std::array<double, 3> pos, std::array<double, 3> vel, double r, double m):
+    constexpr Particle(std::array<double, 3> pos, std::array<double, 3> vel, double m):
         pos(pos),
         vel(vel),
-        r(r),
         m(m)
     {
     }
@@ -51,7 +38,6 @@ std::vector<Particle> circular_orbits(int n){
     particle_buf.push_back(Particle{
         {0.0,0.0,0.0},
         {0.0,0.0,0.0},
-        0.00465047,
         1.0
     });
 
@@ -65,15 +51,9 @@ std::vector<Particle> circular_orbits(int n){
             double y = d * std::sin(theta);
             double vx = -v * std::sin(theta);
             double vy = v * std::cos(theta);
-            // std::printf("x pos: %.9f\n",x);
-            // std::printf("y pos: %.9f\n",y);
-            // std::printf("x vel: %.9f\n",vx);
-            // std::printf("y vel: %.9f\n",vy); 
-            // std::cout << "############" << std::endl;
             particle_buf.push_back(Particle{
                 {x,y,0.0},
                 {vx,vy,0.0},
-                1e-7,
                 1e-14,
             });
         }
@@ -135,7 +115,7 @@ constexpr void advance(std::vector<Particle>& particles, double dt, int n)
     }
 }
 
-constexpr double energy(const std::vector<Particle>& particles, int n)
+double energy(const std::vector<Particle>& particles, int n)
 {
     double e = 0.0;
     #pragma omp parallel
@@ -143,7 +123,6 @@ constexpr double energy(const std::vector<Particle>& particles, int n)
         for(int i=0;i<n;i++){
             const Particle& iParticles = particles[i];
             e += 0.5 * iParticles.m * (iParticles.vel[0] * iParticles.vel[0] + iParticles.vel[1] * iParticles.vel[1] + iParticles.vel[2] * iParticles.vel[2]);
-            std::printf("e: %.9f\n",e); 
             for(int j=0;j<n;j++){
                 if(i!=j){
                     double dx = iParticles.pos[0] - particles[j].pos[0];
@@ -152,7 +131,6 @@ constexpr double energy(const std::vector<Particle>& particles, int n)
 
                     double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
                     e -= (iParticles.m * particles[j].m) / distance;
-                    std::printf("e: %.9f\n",e); 
                 }
             }
         }
@@ -162,20 +140,17 @@ constexpr double energy(const std::vector<Particle>& particles, int n)
 
 int main(int argc, char* argv[])
 {
-    
     const auto n = std::atoi(argv[1]);
 
     std::vector<Particle> particles = circular_orbits(n);
-    std::cout << "Number of particles: " << n << std::endl;
     offset_momentum(particles, n);
 
-    std::printf("%.9f\n", energy(particles, n));
+    std::printf("%e\n", energy(particles, n));
 
     for (size_t i = 0; i < n; ++i)
         advance(particles, 0.01, n);
 
-    std::printf("%.9f\n", energy(particles, n));
-    
+    std::printf("%e\n", energy(particles, n));
 }
 
 //compile: g++ -std=c++11 -O2 -Wall nbody9.cpp 
