@@ -9,6 +9,9 @@
 use std::ops::{Add, Sub, Mul, AddAssign, SubAssign};
 use std::f64::consts::PI;
 
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+use rayon::prelude::*;
+
 const N_BODIES: usize = 5;
 
 #[derive(Clone, Copy)]
@@ -123,21 +126,21 @@ impl NBSystem {
 
     fn advance(&mut self, dt: f64) {
         let planets = &mut self.planets;
-        for i in 0..N_BODIES {
-            for j in (i + 1)..N_BODIES {
-                let dp = planets[i].pos - planets[j].pos;
+       planets.par_iter_mut().enumerate().for_each(|(i, pi)| {
+            for j in 0..N_BODIES {
+                if j != i {
+                    let dp = planets[i].pos - planets[j].pos;
 
-                let distance = dp.norm();
-                let mag = dt / (distance * distance * distance);
-                let massj = planets[j].mass;
-                let massi = planets[i].mass;
+                    let distance = dp.norm();
+                    let mag = dt / (distance * distance * distance);
+                    let massj = planets[j].mass;
 
-                planets[i].vel -= dp * massj * mag;
-                planets[j].vel += dp * massi * mag;
+                    planets[i].vel -= dp * massj * mag;
+                }
             }
             let dpos = planets[i].vel * dt;
             planets[i].pos += dpos;
-        }
+        })
     }
 }
 
