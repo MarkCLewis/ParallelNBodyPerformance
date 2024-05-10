@@ -10,11 +10,9 @@ use std::ops::{Add, Sub, Mul, AddAssign, SubAssign};
 use std::f64::consts::PI;
 
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
-use rayon::prelude::*;
+//use rayon::prelude::*;
 
-const N_BODIES: usize = 5;
-
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Vec3(pub f64, pub f64, pub f64);
 
 impl Vec3 {
@@ -107,11 +105,6 @@ impl NBSystem {
         }
     }
 
-    fn offset_momentum(&mut self) {
-        let p = self.planets.iter_mut().fold(Vec3::new(), |v, b| v + b.vel * b.mass);
-        self.planets[0].vel = p * (-1.0 / self.planets[0].mass);
-    }
-
     fn energy(&self) -> f64 {
         let mut e = 0.0;
         let mut bodies = self.planets.iter();
@@ -124,23 +117,27 @@ impl NBSystem {
         e
     }
 
-    fn advance(&mut self, dt: f64) {
-        let planets = &mut self.planets;
-       planets.par_iter_mut().enumerate().for_each(|(i, pi)| {
-            for j in 0..N_BODIES {
+    fn advance(&mut self, acc: &mut Vec<Vec3>, dt: f64) {
+        acc.par_iter_mut().enumerate().for_each(|(i, acci)| {
+            acci.0 = 0.0;
+            acci.1 = 0.0;
+            acci.2 = 0.0;
+            for j in 0..self.planets.len() {
                 if j != i {
-                    let dp = planets[i].pos - planets[j].pos;
+                    let dp = self.planets[i].pos - self.planets[j].pos;
 
                     let distance = dp.norm();
                     let mag = dt / (distance * distance * distance);
-                    let massj = planets[j].mass;
+                    let massj = self.planets[j].mass;
 
-                    planets[i].vel -= dp * massj * mag;
+                    *acci -= dp * massj * mag;
                 }
-            }
-            let dpos = planets[i].vel * dt;
-            planets[i].pos += dpos;
-        })
+            };
+        });
+        self.planets.par_iter_mut().enumerate().for_each(|(i, pi)| {
+            pi.vel += acc[i];
+            pi.pos += pi.vel * dt;
+        });
     }
 }
 
@@ -156,10 +153,14 @@ fn main() {
         .and_then(|n| n.parse().ok())
         .unwrap_or(1000);
     let mut system = NBSystem::new(n);
-    system.offset_momentum();
-    println!("{:.9}", system.energy());
-    for _ in 0..steps {
-        system.advance(0.01);
+    let mut acc = Vec::new();
+    for _ in 0..(n+1) {
+        acc.push(Vec3::new())
     }
-    println!("{:.9}", system.energy());
+    println!("{steps} {n}");
+    println!("{}", system.energy());
+    for _ in 0..steps {
+        system.advance(&mut acc, 0.001);
+    }
+    println!("{}", system.energy());
 }

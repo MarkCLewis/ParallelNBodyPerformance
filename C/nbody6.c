@@ -32,7 +32,7 @@ struct planet* circular_orbits(int n){
     particle_buf[0].vz = 0.0;
     particle_buf[0].mass = 1.0;
 
-    for(int i=0;i<n;i++){
+    for(int i=1;i<=n;i++){
         double d = 0.1 + (i * 5.0 / n);
         double v = sqrt(1.0 / d);
         double theta = rand() * 6.28;
@@ -40,13 +40,13 @@ struct planet* circular_orbits(int n){
         double y = d * sin(theta);
         double vx = -v * sin(theta);
         double vy = v * cos(theta);
-        particle_buf[0].x = x;
-        particle_buf[0].y = y;
-        particle_buf[0].z = 0.0;
-        particle_buf[0].vx = vx;
-        particle_buf[0].vy = vy;
-        particle_buf[0].vz = 0.0;
-        particle_buf[0].mass = 1.0e-14;
+        particle_buf[i].x = x;
+        particle_buf[i].y = y;
+        particle_buf[i].z = 0.0;
+        particle_buf[i].vx = vx;
+        particle_buf[i].vy = vy;
+        particle_buf[i].vz = 0.0;
+        particle_buf[i].mass = 1.0e-14;
     }
     return particle_buf;
 }
@@ -72,9 +72,6 @@ void advance(int nbodies, struct planet * bodies, double dt)
         b->vz -= dz * b2->mass * mag;
       }
     }
-  }
-  for (i = 0; i < nbodies; i++) {
-    struct planet * b = &(bodies[i]);
     b->x += dt * b->vx;
     b->y += dt * b->vy;
     b->z += dt * b->vz;
@@ -87,6 +84,7 @@ double energy(int nbodies, struct planet * bodies)
   int i, j;
 
   e = 0.0;
+  #pragma omp parallel for reduction(+ : e)
   for (i = 0; i < nbodies; i++) {
     struct planet * b = &(bodies[i]);
     e += 0.5 * b->mass * (b->vx * b->vx + b->vy * b->vy + b->vz * b->vz);
@@ -96,7 +94,7 @@ double energy(int nbodies, struct planet * bodies)
       double dy = b->y - b2->y;
       double dz = b->z - b2->z;
       double distance = sqrt(dx * dx + dy * dy + dz * dz);
-      e -= (b->mass * b2->mass) / distance;
+      e += -(b->mass * b2->mass) / distance;
     }
   }
   return e;
@@ -113,8 +111,10 @@ int main(int argc, char ** argv)
   struct planet* bodies = circular_orbits(n);
 
   printf ("%e\n", energy(n+1, bodies));
-  for (i = 1; i <= steps; i++)
+  for (i = 1; i <= steps; i++) {
     advance(n+1, bodies, 0.001);
+  }
   printf ("%e\n", energy(n+1, bodies));
+  free(bodies);
   return 0;
 }
