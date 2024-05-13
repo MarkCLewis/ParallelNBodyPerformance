@@ -12,39 +12,43 @@ package main
 
 import (
     "flag"
-    "fmt"
+//    "fmt"
     "math"
     "strconv"
-)
-
-var n = 0
-
-const (
-    solarMass   = 4 * math.Pi * math.Pi
-    daysPerYear = 365.24
-    N           = 5
+    "math/rand/v2"
+    "github.com/dgravesa/go-parallel/parallel"
 )
 
 type Position struct{ x, y, z float64 }
 type Momentum struct{ x, y, z, m float64 }
 type System struct {
-    v [N]Momentum
-    s [N]Position
+    v []Momentum
+    s []Position
 }
 
-func offsetMomentum() {
-    var px, py, pz float64
-    for i := 0; i < N; i++ {
-        px += sys.v[i].x * sys.v[i].m
-        py += sys.v[i].y * sys.v[i].m
-        pz += sys.v[i].z * sys.v[i].m
-    }
-    sys.v[0].x = -px / solarMass
-    sys.v[0].y = -py / solarMass
-    sys.v[0].z = -pz / solarMass
+func circular_orbits(n int) System {
+	momentum := make([]Momentum, n)
+	position := make([]Position, n)
+	system := System{v: momentum, s: position}
+        system.s[0] = Position{0.0, 0.0, 0.0}
+        system.v[0] = Momentum{0.0, 0.0, 0.0, 1.0}
+
+        for i := 1; i < n; i++ {
+                d := float64(0.1) + (float64(i) * 5.0 / float64(n))
+                v := math.Sqrt(1.0 / d)
+                theta := rand.Float64() * 6.28
+                x := d * math.Cos(theta)
+                y := d * math.Sin(theta)
+                vx := -v * math.Sin(theta)
+                vy := v * math.Cos(theta)
+                system.s[i] = Position{x, y, 0.0}
+                system.v[i] = Momentum{vx, vy, 0.0, 1.0e-7}
+        }
+        return system
 }
 
-func energy() float64 {
+func energy(sys *System) float64 {
+    N := len(sys.s)
     var e float64
     for i := 0; i < N; i++ {
         e += 0.5 * sys.v[i].m *
@@ -60,103 +64,54 @@ func energy() float64 {
     return e
 }
 
-func advance(dt float64) {
+func advance(dt float64, sys *System, p int) {
+    N := len(sys.s)
 
-    for i := 0; i < N-1; i++ {
+    parallel.WithNumGoroutines(p).For(N, func(i, _ int) {
         _vx, _vy, _vz := sys.v[i].x, sys.v[i].y, sys.v[i].z
 
-        for j := i + 1; j < N; j++ {
+        for j := 0; j < N; j++ {
+            if j != i {
 
-            dx := sys.s[i].x - sys.s[j].x
-            dy := sys.s[i].y - sys.s[j].y
-            dz := sys.s[i].z - sys.s[j].z
+                dx := sys.s[i].x - sys.s[j].x
+                dy := sys.s[i].y - sys.s[j].y
+                dz := sys.s[i].z - sys.s[j].z
 
-            dSquared := dx*dx + dy*dy + dz*dz
-            distance := math.Sqrt(dSquared)
-            mag := (dt / (dSquared * distance))
-            mi := sys.v[i].m
-            _vx -= dx * sys.v[j].m * mag
-            _vy -= dy * sys.v[j].m * mag
-            _vz -= dz * sys.v[j].m * mag
-            sys.v[j].x += dx * mi * mag
-            sys.v[j].y += dy * mi * mag
-            sys.v[j].z += dz * mi * mag
+                dSquared := dx*dx + dy*dy + dz*dz
+                distance := math.Sqrt(dSquared)
+                mag := (dt / (dSquared * distance))
+                _vx -= dx * sys.v[j].m * mag
+                _vy -= dy * sys.v[j].m * mag
+                _vz -= dz * sys.v[j].m * mag
+	    }
         }
         sys.v[i].x, sys.v[i].y, sys.v[i].z = _vx, _vy, _vz
-    }
+    })
 
-    for i := 0; i < N; i++ {
+    parallel.WithNumGoroutines(p).For(N, func(i, _ int) {
         sys.s[i].x += dt * sys.v[i].x
         sys.s[i].y += dt * sys.v[i].y
         sys.s[i].z += dt * sys.v[i].z
-    }
-}
-
-var sys = System{
-    v: [N]Momentum{
-        {0.0, 0.0, 0.0, solarMass},
-        {
-            1.66007664274403694e-03 * daysPerYear,
-            7.69901118419740425e-03 * daysPerYear,
-            -6.90460016972063023e-05 * daysPerYear,
-            9.54791938424326609e-04 * solarMass,
-        },
-        {
-            -2.76742510726862411e-03 * daysPerYear,
-            4.99852801234917238e-03 * daysPerYear,
-            2.30417297573763929e-05 * daysPerYear,
-            2.85885980666130812e-04 * solarMass,
-        },
-        {
-            2.96460137564761618e-03 * daysPerYear,
-            2.37847173959480950e-03 * daysPerYear,
-            -2.96589568540237556e-05 * daysPerYear,
-            4.36624404335156298e-05 * solarMass,
-        },
-        {
-            2.68067772490389322e-03 * daysPerYear,
-            1.62824170038242295e-03 * daysPerYear,
-            -9.51592254519715870e-05 * daysPerYear,
-            5.15138902046611451e-05 * solarMass,
-        },
-    },
-
-    s: [N]Position{
-        {0.0, 0.0, 0.0},
-        {
-            4.84143144246472090e+00,
-            -1.16032004402742839e+00,
-            -1.03622044471123109e-01,
-        },
-        {
-            8.34336671824457987e+00,
-            4.12479856412430479e+00,
-            -4.03523417114321381e-01,
-        },
-        {
-            1.28943695621391310e+01,
-            -1.51111514016986312e+01,
-            -2.23307578892655734e-01,
-        },
-        {
-            1.53796971148509165e+01,
-            -2.59193146099879641e+01,
-            1.79258772950371181e-01,
-        },
-    },
+    })
 }
 
 func main() {
+    var steps int
+    var n int
+    var p int
     flag.Parse()
     if flag.NArg() > 0 {
-        n, _ = strconv.Atoi(flag.Arg(0))
+        steps, _ = strconv.Atoi(flag.Arg(0))
+        n, _ = strconv.Atoi(flag.Arg(1))
+        p, _ = strconv.Atoi(flag.Arg(2))
     }
-    offsetMomentum()
 
-    fmt.Printf("%.9f\n", energy())
-    for i := 0; i < n; i++ {
-        advance(0.01)
+    sys := circular_orbits(n)
+
+//    fmt.Printf("%.9f\n", energy(&sys))
+    for i := 0; i < steps; i++ {
+        advance(0.01, &sys, p)
     }
-    fmt.Printf("%.9f\n", energy())
+//    fmt.Printf("%.9f\n", energy(&sys))
 
 }

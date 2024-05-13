@@ -157,10 +157,9 @@ fn main() {
     for _ in 0..(n+1) {
         acc.push(Vec3::new())
     }
-    println!("{steps} {n}");
-    println!("{}", system.energy());
+//    println!("{}", system.energy());
     for _ in 0..steps {
         system.advance(&mut acc, 0.001);
     }
-    println!("{}", system.energy());
+//    println!("{}", system.energy());
 }

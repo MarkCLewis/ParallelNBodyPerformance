@@ -7,6 +7,7 @@
 */
 
 import java.util.random.RandomGenerator;
+import java.util.stream.IntStream;
 
 
 public final class nbody {
@@ -15,10 +16,10 @@ public final class nbody {
       int numBodies = Integer.parseInt(args[1]);
 
       NBodySystem bodies = new NBodySystem(numBodies);
-      System.out.printf("%e\n", bodies.energy());
+//      System.out.printf("%e\n", bodies.energy());
       for (int i = 0; i < steps; ++i)
          bodies.advance(0.01);
-      System.out.printf("%e\n", bodies.energy());
+//      System.out.printf("%e\n", bodies.energy());
    }
 
    final static class NBodySystem {
@@ -43,41 +44,38 @@ public final class nbody {
       public void advance(double dt) {
          final double[] bodies = _bodies;
 
-         for (int i = 0; i < numBodies; ++i) {
+	 IntStream.range(0, numBodies).parallel().forEach(i -> {
             final int offset = BODY_SIZE * i;
 
-            for (int j = i + 1; j < numBodies; ++j) {
-               final int ioffset = offset;
-               final int joffset = BODY_SIZE * j;
+            for (int j = 0; j < numBodies; ++j) {
+	        if (i != j) {
+                    final int ioffset = offset;
+                    final int joffset = BODY_SIZE * j;
 
-               final double dx = bodies[ioffset + x] - bodies[joffset + x];
-               final double dy = bodies[ioffset + y] - bodies[joffset + y];
-               final double dz = bodies[ioffset + z] - bodies[joffset + z];
+                    final double dx = bodies[ioffset + x] - bodies[joffset + x];
+                    final double dy = bodies[ioffset + y] - bodies[joffset + y];
+                    final double dz = bodies[ioffset + z] - bodies[joffset + z];
 
-               final double dSquared = dx * dx + dy * dy + dz * dz;
-               final double distance = Math.sqrt(dSquared);
-               final double mag = dt / (dSquared * distance);
+                    final double dSquared = dx * dx + dy * dy + dz * dz;
+                    final double distance = Math.sqrt(dSquared);
+                    final double mag = dt / (dSquared * distance);
 
-               final double jmass = bodies[joffset + mass];
+                    final double jmass = bodies[joffset + mass];
 
-               bodies[ioffset + vx] -= dx * jmass * mag;
-               bodies[ioffset + vy] -= dy * jmass * mag;
-               bodies[ioffset + vz] -= dz * jmass * mag;
-
-               final double imass = bodies[ioffset + mass];
-               bodies[joffset + vx] += dx * imass * mag;
-               bodies[joffset + vy] += dy * imass * mag;
-               bodies[joffset + vz] += dz * imass * mag;
+                    bodies[ioffset + vx] -= dx * jmass * mag;
+                    bodies[ioffset + vy] -= dy * jmass * mag;
+                    bodies[ioffset + vz] -= dz * jmass * mag;
+	        }
             }
-         }
+         });
 
-         for (int i = 0; i < numBodies; ++i) {
+	 IntStream.range(0, numBodies).parallel().forEach(i -> {
             final int ioffset = BODY_SIZE * i;
 
             bodies[ioffset + x] += dt * bodies[ioffset + vx];
             bodies[ioffset + y] += dt * bodies[ioffset + vy];
             bodies[ioffset + z] += dt * bodies[ioffset + vz];
-         }
+         });
       }
 
       public double energy() {

@@ -19,31 +19,8 @@ mutable struct Body
     m::Float64
 end
 
-function getDim(bod, dim)
-    if dim == 0
-        bod.x
-    elseif dim == 1
-        bod.y 
-    else
-        bod.x
-    end
-end
-
-# account for momentum 
-function offsetMomentum!(s, bodies)
-    px = py = pz = 0.0
-    for b in bodies
-        px -= b.vx * b.m
-        py -= b.vy * b.m
-        pz -= b.vz * b.m
-    end
-    s.vx = px / SOLAR_MASS
-    s.vy = py / SOLAR_MASS
-    s.vz = pz / SOLAR_MASS
-end
-
 # kicks 
-function advance!(bodies, dt)
+function advance!(bodies::Array{Body}, dt::Float64)
     Threads.@threads for i in 1:length(bodies)
         bodi = bodies[i]
         for j in 1:length(bodies)
@@ -62,7 +39,7 @@ function advance!(bodies, dt)
             end
         end
     end
-    for i=1:length(bodies)
+    Threads.@threads for i in 1:length(bodies)
         bodi = bodies[i]
         bodi.x += dt * bodi.vx
         bodi.y += dt * bodi.vy
@@ -71,7 +48,7 @@ function advance!(bodies, dt)
 end
 
 # energy
-function energy(bodies)
+function energy(bodies::Array{Body})::Float64
     e = 0.0
     for i in 1:length(bodies)
         bodi = bodies[i]
@@ -85,7 +62,7 @@ function energy(bodies)
     e
 end
 
-function circular_orbits(n) 
+function circular_orbits(n::Int64)::Array{Body} 
     first = Body(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)
     bods = [first]
     for i in 1:n
@@ -96,7 +73,7 @@ function circular_orbits(n)
         y = d * sin(theta)
         vx = -v * sin(theta)
         vy = v * cos(theta)
-        temp = Body(x, y, 0.0, vx, vy, 0, 1.0e-7)
+        temp = Body(x, y, 0.0, vx, vy, 0, 1.0e-14)
         push!(bods, temp)
     end
     bods
@@ -104,52 +81,15 @@ function circular_orbits(n)
 end
 
 # planets sun - jupiter - saturn - uranus - neptune 
-function nbody(steps, numBodies)
-    sun = Body(0,0,0,0,0,0, SOLAR_MASS)
-
-    jupiter = Body( 4.84143144246472090e+0,                   # x
-                   -1.16032004402742839e+0,                   # y
-                   -1.03622044471123109e-1,                   # z
-                    1.66007664274403694e-3 * DAYS_PER_YEAR,   # vx
-                    7.69901118419740425e-3 * DAYS_PER_YEAR,   # vy
-                   -6.90460016972063023e-5 * DAYS_PER_YEAR,   # vz
-                    9.54791938424326609e-4 * SOLAR_MASS)      # mass
-
-    saturn = Body( 8.34336671824457987e+0,
-                   4.12479856412430479e+0,
-                  -4.03523417114321381e-1,
-                  -2.76742510726862411e-3 * DAYS_PER_YEAR,
-                   4.99852801234917238e-3 * DAYS_PER_YEAR,
-                   2.30417297573763929e-5 * DAYS_PER_YEAR,
-                   2.85885980666130812e-4 * SOLAR_MASS)
-
-    uranus = Body( 1.28943695621391310e+1,
-                  -1.51111514016986312e+1,
-                  -2.23307578892655734e-1,
-                   2.96460137564761618e-3 * DAYS_PER_YEAR,
-                   2.37847173959480950e-3 * DAYS_PER_YEAR,
-                  -2.96589568540237556e-5 * DAYS_PER_YEAR,
-                   4.36624404335156298e-5 * SOLAR_MASS)
-
-    neptune = Body( 1.53796971148509165e+1,
-                   -2.59193146099879641e+1,
-                    1.79258772950371181e-1,
-                    2.68067772490389322e-3 * DAYS_PER_YEAR,
-                    1.62824170038242295e-3 * DAYS_PER_YEAR,
-                   -9.51592254519715870e-5 * DAYS_PER_YEAR,
-                    5.15138902046611451e-5 * SOLAR_MASS)
-
-    #bods = [jupiter, saturn, uranus, neptune]
+function nbody(steps::Int64, numBodies::Int64)
     bods = circular_orbits(numBodies)
-    #offsetMomentum!(sun, bods)
-    # pushfirst!(bods, sun)
 
     # do advancing stuff
-    @printf("%.9f\n", energy(bods))
+#    @printf("%e\n", energy(bods))
     for i = 1:steps
-        advance!(bods, 0.01)
+        advance!(bods, 0.001)
     end
-    @printf("%.9f\n", energy(bods))
+#    @printf("%e\n", energy(bods))
 end
 
 if !isinteractive()

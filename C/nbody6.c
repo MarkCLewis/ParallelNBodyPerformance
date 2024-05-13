@@ -53,12 +53,10 @@ struct planet* circular_orbits(int n){
 
 void advance(int nbodies, struct planet * bodies, double dt)
 {
-  int i, j;
-
   #pragma omp parallel for
-  for (i = 0; i < nbodies; i++) {
+  for (int i = 0; i < nbodies; i++) {
     struct planet * b = &(bodies[i]);
-    for (j = 0; j < nbodies; j++) {
+    for (int j = 0; j < nbodies; j++) {
       if (i != j) {
         struct planet * b2 = &(bodies[j]);
         double dx = b->x - b2->x;
@@ -72,6 +70,11 @@ void advance(int nbodies, struct planet * bodies, double dt)
         b->vz -= dz * b2->mass * mag;
       }
     }
+  }
+
+  #pragma omp parallel for
+  for (int i = 0; i < nbodies; i++) {
+    struct planet * b = &(bodies[i]);
     b->x += dt * b->vx;
     b->y += dt * b->vy;
     b->z += dt * b->vz;
@@ -81,14 +84,13 @@ void advance(int nbodies, struct planet * bodies, double dt)
 double energy(int nbodies, struct planet * bodies)
 {
   double e;
-  int i, j;
 
   e = 0.0;
   #pragma omp parallel for reduction(+ : e)
-  for (i = 0; i < nbodies; i++) {
+  for (int i = 0; i < nbodies; i++) {
     struct planet * b = &(bodies[i]);
     e += 0.5 * b->mass * (b->vx * b->vx + b->vy * b->vy + b->vz * b->vz);
-    for (j = i + 1; j < nbodies; j++) {
+    for (int j = i + 1; j < nbodies; j++) {
       struct planet * b2 = &(bodies[j]);
       double dx = b->x - b2->x;
       double dy = b->y - b2->y;
@@ -110,11 +112,11 @@ int main(int argc, char ** argv)
 
   struct planet* bodies = circular_orbits(n);
 
-  printf ("%e\n", energy(n+1, bodies));
+//  printf ("%e\n", energy(n+1, bodies));
   for (i = 1; i <= steps; i++) {
     advance(n+1, bodies, 0.001);
   }
-  printf ("%e\n", energy(n+1, bodies));
+//  printf ("%e\n", energy(n+1, bodies));
   free(bodies);
   return 0;
 }

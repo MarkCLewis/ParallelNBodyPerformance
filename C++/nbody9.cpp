@@ -76,6 +76,10 @@ void advance(std::vector<Particle>& particles, double dt)
                 particles[i].vel[2] -= dz * particles[j].m * mag;
             }
         }
+    }
+
+    #pragma omp parallel for
+    for(int i=0;i<particles.size();i++){
         particles[i].pos[0] += dt * particles[i].vel[0];
         particles[i].pos[1] += dt * particles[i].vel[1];
         particles[i].pos[2] += dt * particles[i].vel[2];
@@ -113,13 +117,13 @@ int main(int argc, char* argv[])
     std::vector<Particle> particles = circular_orbits(n);
 
 
-    std::printf("%e\n", energy(particles));
+//    std::printf("%e\n", energy(particles));
 
     for (size_t i = 0; i < steps; ++i) {
         advance(particles, 0.001);
     }
 
-    std::printf("%e\n", energy(particles));
+//    std::printf("%e\n", energy(particles));
 }
 
 //compile: g++ -std=c++11 -O2 -Wall nbody9.cpp 
