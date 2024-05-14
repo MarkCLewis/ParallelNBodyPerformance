@@ -371,3 +371,6 @@ project/plugins/project/
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/java,rust,go,visualstudiocode,c,c++,python,julia,scala,metals,sbt
+
+*.ps
+*.pdf

@@ -9,7 +9,7 @@ def stats(times: List[Double]): (Double, Double) = {
 }
 
 @main def processTimes(topDir: String): Unit = {
-  val dirs = new File(topDir).listFiles().filter(_.isDirectory())
+  val dirs = new File(topDir).listFiles().filter(_.isDirectory()).sortBy(_.getName())
   var id = 0
   for (dir <- dirs) {
     val files = dir.list().filter(name => name.startsWith("time") && name.endsWith(".txt"))
@@ -29,10 +29,13 @@ def stats(times: List[Double]): (Double, Double) = {
           }
           bodies = n.toInt
           threads = t.toInt
+          if (threads % 2 == 1) threads += 1
         } else {
           secs ::= 60*m.toDouble + s.toDouble
         }
       }
+      val (avg, std) = stats(secs)
+      println(s"$id $bodies $threads $avg $std")
       source.close()
       id += 1
     }

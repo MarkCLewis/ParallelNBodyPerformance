@@ -73,7 +73,7 @@ function circular_orbits(n::Int64)::Array{Body}
         y = d * sin(theta)
         vx = -v * sin(theta)
         vy = v * cos(theta)
-        temp = Body(x, y, 0.0, vx, vy, 0, 1.0e-14)
+        temp = Body(x, y, 0.0, vx, vy, 0, 1.0e-7)
         push!(bods, temp)
     end
     bods
